@@ -1,86 +1,199 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Live Smart Fridge Camera</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akshay's Door Cam</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #controls button { font-size: 1.2em; padding: 10px 20px; cursor: pointer; }
-        #streamContainer { 
-            margin-top: 20px; 
-            border: 2px solid #ccc; 
-            min-width: 640px; 
-            min-height: 480px; 
-            margin-left: auto; 
-            margin-right: auto; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center;
-            background-color: #000;
+        /* General Styling */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 24px;
+            color: #1c1e21;
         }
-        #streamContainer img { max-width: 100%; }
-        #status { color: #888; font-style: italic; }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 24px;
+        }
+
+        /* Grid for Image Cards */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .capture-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .capture-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .capture-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover; /* Ensures image covers the area without distortion */
+            display: block;
+        }
+        .capture-info {
+            padding: 12px;
+            font-size: 12px;
+            color: #65676b;
+            border-top: 1px solid #ddd;
+        }
+
+        /* Modal Styling (for large image pop-up) */
+        .modal-backdrop {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .modal-close:hover {
+            color: #bbb;
+        }
     </style>
 </head>
 <body>
-    <h1>Smart Fridge Live View</h1>
-    <div id="controls">
-        <button id="startBtn">Start Live</button>
-        <button id="stopBtn" style="display:none;">Stop Live</button>
-    </div>
-    <div id="streamContainer">
-        <p id="status">Press "Start Live" to begin streaming.</p>
+
+    <!-- Modal Structure (hidden) -->
+    <div id="imageModal" class="modal-backdrop">
+        <span class="modal-close" id="modalCloseBtn">&times;</span>
+        <img class="modal-content" id="modalImage">
     </div>
 
-    <script>
-        const startButton = document.getElementById('startBtn');
-        const stopButton = document.getElementById('stopBtn');
-        const container = document.getElementById('streamContainer');
-        const statusText = document.getElementById('status');
+    <div class="container">
+        <h1>Door Event Log</h1>
+        <div class="grid-container" id="gridContainer">
+            <!-- Images will be loaded here by Jinja2 and JavaScript -->
+            {% for capture in captures %}
+                <div class="capture-card" data-large-src="{{ capture.image_url }}" data-capture-id="{{ capture.id }}">
+                    <img src="{{ capture.image_url }}" alt="Door Capture">
+                    <div class="capture-info">
+                        {{ capture.inserted_at.split('T')[0] }} at {{ capture.inserted_at.split('T')[1].split('.')[0] }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% if not captures %}
+            <p id="noCaptures" style="text-align: center;">No door events have been captured yet.</p>
+        {% endif %}
+    </div>
 
-        let streamImage = null;
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const closeBtn = document.getElementById('modalCloseBtn');
+        const gridContainer = document.getElementById('gridContainer');
+        let latestKnownId = -1; // Keep track of the newest image displayed
 
-        function startStream() {
-            // Clear the container
-            container.innerHTML = '';
-            statusText.style.display = 'none';
-
-            // Create a new image element for the stream
-            streamImage = document.createElement('img');
-            // The src is our Python server's relay endpoint.
-            // Add a timestamp to prevent caching.
-            streamImage.src = '/video_feed?' + new Date().getTime();
-            
-            streamImage.onerror = () => {
-                container.innerHTML = '<p style="color:red;">Error: Could not connect to the camera stream. Is the ESP32 on and connected?</p>';
-                stopStream(); // Reset buttons
-            };
-
-            container.appendChild(streamImage);
-
-            // Update button visibility
-            startButton.style.display = 'none';
-            stopButton.style.display = 'block';
+        // Function to open the modal
+        function openModal(imgSrc) {
+            modal.style.display = "flex";
+            modalImg.src = imgSrc;
         }
 
-        function stopStream() {
-            if (streamImage) {
-                // Setting the src to empty effectively stops the browser from loading the stream
-                streamImage.src = '#';
-                streamImage.remove();
-                streamImage = null;
+        // Function to close the modal
+        function closeModal() {
+            modal.style.display = "none";
+        }
+
+        // Function to add click listeners to cards
+        function addClickListenersToCard(card) {
+            card.addEventListener('click', () => {
+                openModal(card.dataset.largeSrc);
+            });
+        }
+
+        // Add listeners to initially loaded cards
+        const initialCards = document.querySelectorAll('.capture-card');
+        if (initialCards.length > 0) {
+            latestKnownId = initialCards[0].dataset.captureId; // The first card is the newest
+            initialCards.forEach(addClickListenersToCard);
+        }
+
+        // Event listeners for closing the modal
+        closeBtn.onclick = closeModal;
+        modal.onclick = function(event) {
+            if (event.target === modal) { // Only close if clicking the backdrop
+                closeModal();
             }
-            container.innerHTML = '<p id="status">Stream stopped.</p>';
+        };
 
-            // Update button visibility
-            startButton.style.display = 'block';
-            stopButton.style.display = 'none';
+        // --- DYNAMIC UPDATE LOGIC ---
+        async function fetchLatestCapture() {
+            try {
+                const response = await fetch('/latest');
+                if (!response.ok) return; // Don't do anything if server has an error
+                const latestCapture = await response.json();
+
+                // Check if we have data and if it's a new capture
+                if (latestCapture && latestCapture.id > latestKnownId) {
+                    console.log("New capture found!", latestCapture);
+                    latestKnownId = latestCapture.id; // Update the latest known ID
+
+                    // Hide the 'no captures' message if it exists
+                    const noCapturesMsg = document.getElementById('noCaptures');
+                    if(noCapturesMsg) noCapturesMsg.style.display = 'none';
+
+                    // Create the new card HTML
+                    const newCardHTML = `
+                        <div class="capture-card" data-large-src="${latestCapture.image_url}" data-capture-id="${latestCapture.id}">
+                            <img src="${latestCapture.image_url}" alt="Door Capture">
+                            <div class="capture-info">
+                                ${latestCapture.inserted_at.split('T')[0]} at ${latestCapture.inserted_at.split('T')[1].split('.')[0]}
+                            </div>
+                        </div>`;
+
+                    // Add the new card to the top of the grid
+                    gridContainer.insertAdjacentHTML('afterbegin', newCardHTML);
+                    
+                    // Add a click listener to the newly created card
+                    const newCardElement = gridContainer.firstChild;
+                    addClickListenersToCard(newCardElement);
+                }
+            } catch (error) {
+                console.error("Error fetching latest capture:", error);
+            }
         }
 
-        startButton.addEventListener('click', startStream);
-        stopButton.addEventListener('click', stopStream);
-    </script>
+        // Poll the server every 5 seconds for new images
+        setInterval(fetchLatestCapture, 5000);
+    });
+</script>
+
 </body>
 </html>

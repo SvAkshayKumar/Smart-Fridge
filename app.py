@@ -1,44 +1,84 @@
-from flask import Flask, render_template, Response
-import requests
+import os
+from flask import Flask, request, jsonify, render_template
+from supabase import create_client, Client
+from datetime import datetime
 
+# --- Configuration ---
+# Get these from your Supabase project's API settings
+SUPABASE_URL = "https://isgrdfhvghdhmbtauect.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzZ3JkZmh2Z2hkaG1idGF1ZWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1ODQ3NzEsImV4cCI6MjA3NjE2MDc3MX0.TKIjtSDz1_DoI987Rvkn2ZRWUYvX5wuuusL7cSet7lY"
+
+# Initialize Flask App and Supabase Client
 app = Flask(__name__)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- IMPORTANT ---
-# Replace this with the IP address of your ESP32-CAM from the Arduino Serial Monitor
-ESP32_IP = "192.168.0.105" # CHANGE THIS!
-ESP32_STREAM_URL = f"http://{ESP32_IP}/stream"
+IMAGE_BUCKET = "images"
 
-def generate_video_stream():
-    """
-    Connects to the ESP32 stream and forwards the data chunk by chunk.
-    """
-    try:
-        # The 'stream=True' is crucial for this to work
-        with requests.get(ESP32_STREAM_URL, stream=True, timeout=10) as r:
-            if r.status_code == 200:
-                # Yield each chunk of the response (which is part of the MJPEG stream)
-                for chunk in r.iter_content(chunk_size=1024):
-                    yield chunk
-            else:
-                print(f"Error receiving stream from ESP32: {r.status_code}")
-                yield b'' # Yield empty bytes if error
-    except requests.exceptions.RequestException as e:
-        print(f"Could not connect to ESP32 stream: {e}")
-        yield b'' # Yield empty bytes if connection fails
+# --- Web Routes ---
 
 @app.route('/')
 def index():
-    """Serves the main HTML page."""
-    return render_template('index.html')
+    """Renders the main page, fetching and displaying all captured images."""
+    try:
+        response = supabase.table('captures').select("*").order('inserted_at', desc=True).execute()
+        captures_data = response.data
+        return render_template('index.html', captures=captures_data)
+    except Exception as e:
+        print(f"Error fetching data for index page: {e}")
+        return "<h1>Error loading data. See server logs.</h1>", 500
 
-@app.route('/video_feed')
-def video_feed():
+
+@app.route('/newdata', methods=['POST'])
+def new_data():
+    """Endpoint to receive data from the ESP32-CAM."""
+    # This function remains exactly the same as before.
+    print("Received new data request...")
+    if 'imageFile' not in request.files:
+        return jsonify({"status": "error", "message": "No image file part"}), 400
+    image_file = request.files['imageFile']
+    metadata_text = request.form.get('metadata', '{}')
+    if image_file.filename == '':
+        return jsonify({"status": "error", "message": "No selected file"}), 400
+    try:
+        file_extension = os.path.splitext(image_file.filename)[1]
+        unique_filename = f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
+        image_bytes = image_file.read()
+        
+        supabase.storage.from_(IMAGE_BUCKET).upload(
+            file=image_bytes, path=unique_filename, file_options={"content-type": image_file.mimetype}
+        )
+        public_url = supabase.storage.from_(IMAGE_BUCKET).get_public_url(unique_filename)
+        
+        db_insert_response = supabase.table('captures').insert({
+            'image_url': public_url, 'metadata': metadata_text 
+        }).execute()
+        
+        if len(db_insert_response.data) > 0:
+            print("Successfully saved data.")
+            return jsonify({"status": "success", "message": "Image uploaded successfully"}), 201
+        else:
+            raise Exception("Failed to insert data into the database.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# <<< NEW >>> Endpoint for dynamic updates
+@app.route('/latest')
+def latest_capture():
     """
-    This is the endpoint the browser will connect to.
-    It returns the streaming response from the ESP32.
+    Returns the most recent capture data as JSON.
+    The frontend will poll this to check for new images.
     """
-    return Response(generate_video_stream(), mimetype='multipart/x-mixed-replace; boundary=--frame')
+    try:
+        # Fetch only the single most recent record
+        response = supabase.table('captures').select("*").order('inserted_at', desc=True).limit(1).single().execute()
+        return jsonify(response.data)
+    except Exception as e:
+        # It's okay if this fails (e.g., no data yet), return an empty object
+        print(f"Error fetching latest data: {e}")
+        return jsonify({})
+
 
 if __name__ == '__main__':
-
-    app.run(debug=True,host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=80)
