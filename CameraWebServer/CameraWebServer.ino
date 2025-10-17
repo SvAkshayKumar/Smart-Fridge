@@ -7,7 +7,7 @@
 // ===================
 // Select camera model
 // ===================
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+#define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
 // ===========================
@@ -17,16 +17,16 @@ const char *ssid = "Rangapg16";
 const char *password = "password@16";
 
 // --- Function Prototypes ---
-static esp_err_t capture_handler(httpd_req_t *req);
-void start_server();
+esp_err_t stream_handler(httpd_req_t *req);
+// RENAMED THE FUNCTION to avoid conflicts
+void start_stream_server(); 
 
 void setup() {
-  // Disable brownout detector
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
-  Serial.begin(1152200);
+  Serial.begin(115200);
   Serial.setDebugOutput(true);
-  Serial.println("\n--- Smart Fridge Camera (JPEG Encoder Version) ---");
+  Serial.println("\n--- ESP32-CAM Live Streamer ---");
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -49,21 +49,12 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   
-  config.frame_size = FRAMESIZE_UXGA;
   config.pixel_format = PIXFORMAT_RGB565;
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.frame_size = FRAMESIZE_VGA;
   config.jpeg_quality = 12;
-  config.fb_count = 1;
+  config.fb_count = 2;
+  config.grab_mode = CAMERA_GRAB_LATEST;
 
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-      // This part is skipped
-  } else {
-    // This part runs, setting the final frame size
-    config.frame_size = FRAMESIZE_240X240;
-  }
-
-  // Camera init
   Serial.println("Initializing camera...");
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
@@ -71,13 +62,6 @@ void setup() {
     return;
   }
   Serial.println("Camera initialized.");
-
-  sensor_t *s = esp_camera_sensor_get();
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);
-    s->set_brightness(s, 1);
-    s->set_saturation(s, -2);
-  }
 
   // Connect to WiFi
   WiFi.begin(ssid, password);
@@ -87,67 +71,99 @@ void setup() {
   }
   Serial.println("\nWiFi connected");
 
-  // Start the web server
-  start_server();
+  // Start the web server by calling our RENAMED function
+  start_stream_server();
 
-  Serial.print("Camera Server Ready! Use this IP in your Python script: http://");
+  Serial.print("Camera Stream Ready! IP: http://");
   Serial.println(WiFi.localIP());
 }
 
-// Handler function to capture an image and send it AS A JPEG
-static esp_err_t capture_handler(httpd_req_t *req){
+// The core streaming function (UNCHANGED)
+esp_err_t stream_handler(httpd_req_t *req){
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
-  
-  fb = esp_camera_fb_get();
-  if (!fb) {
-    Serial.println("Camera capture failed");
-    httpd_resp_send_500(req);
-    return ESP_FAIL;
+  size_t _jpg_buf_len = 0;
+  uint8_t * _jpg_buf = NULL;
+  char * part_buf[64];
+
+  static int64_t last_frame = 0;
+  if(!last_frame) {
+    last_frame = esp_timer_get_time();
   }
 
-  if(fb->format != PIXFORMAT_JPEG){
-    size_t out_len;
-    uint8_t * out_buf;
-    bool converted = frame2jpg(fb, 80, &out_buf, &out_len);
-    esp_camera_fb_return(fb);
-    if(!converted){
-        Serial.println("JPEG conversion failed");
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
-    httpd_resp_set_type(req, "image/jpeg");
-    res = httpd_resp_send(req, (const char *)out_buf, out_len);
-    free(out_buf);
-  } else {
-    httpd_resp_set_type(req, "image/jpeg");
-    res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-    esp_camera_fb_return(fb);
+  res = httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=--frame");
+  if(res != ESP_OK){
+    return res;
   }
-  
+
+  httpd_resp_send_chunk(req, "--frame\r\n", 9);
+
+  while(true){
+    fb = esp_camera_fb_get();
+    if (!fb) {
+      Serial.println("Camera capture failed");
+      res = ESP_FAIL;
+    } else {
+      if(fb->format != PIXFORMAT_JPEG){
+        bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
+        esp_camera_fb_return(fb);
+        fb = NULL;
+        if(!jpeg_converted){
+          Serial.println("JPEG compression failed");
+          res = ESP_FAIL;
+        }
+      } else {
+        _jpg_buf_len = fb->len;
+        _jpg_buf = fb->buf;
+      }
+    }
+
+    if(res == ESP_OK){
+      size_t hlen = snprintf((char *)part_buf, 64, "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", _jpg_buf_len);
+      res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
+    }
+    if(res == ESP_OK){
+      res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
+    }
+    if(res == ESP_OK){
+      res = httpd_resp_send_chunk(req, "\r\n--frame\r\n", 11);
+    }
+
+    if(fb){
+      esp_camera_fb_return(fb);
+      fb = NULL;
+      _jpg_buf = NULL;
+    } else if(_jpg_buf){
+      free(_jpg_buf);
+      _jpg_buf = NULL;
+    }
+
+    if(res != ESP_OK){
+      break;
+    }
+  }
   return res;
 }
 
-// Function to set up and start the web server
-void start_server(){
+// RENAMED THE FUNCTION to avoid conflicts
+void start_stream_server(){
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = 80;
 
-  httpd_uri_t capture_uri = {
-    .uri       = "/capture",
+  httpd_uri_t stream_uri = {
+    .uri       = "/stream",
     .method    = HTTP_GET,
-    .handler   = capture_handler,
+    .handler   = stream_handler,
     .user_ctx  = NULL
   };
 
-  // CORRECTED: Changed OK to ESP_OK
   if (httpd_start(&server, &config) == ESP_OK) {
-    httpd_register_uri_handler(server, &capture_uri);
+    httpd_register_uri_handler(server, &stream_uri);
   }
 }
 
 void loop() {
   delay(10000);
 }
-//  #################################### pHOTO CAPTURE TO SERVER
+
+// #################################### VIDEO CAPTURE TO SERVER LIVE STREAMING

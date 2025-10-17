@@ -1,39 +1,44 @@
-
 from flask import Flask, render_template, Response
 import requests
 
 app = Flask(__name__)
 
 # --- IMPORTANT ---
-# Replace this with the IP address from your ESP32's Serial Monitor
-ESP32_CAM_IP = "192.168.0.107" # CHANGE THIS!
-ESP32_CAM_URL = f"http://{ESP32_CAM_IP}/capture"
+# Replace this with the IP address of your ESP32-CAM from the Arduino Serial Monitor
+ESP32_IP = "192.168.0.105" # CHANGE THIS!
+ESP32_STREAM_URL = f"http://{ESP32_IP}/stream"
+
+def generate_video_stream():
+    """
+    Connects to the ESP32 stream and forwards the data chunk by chunk.
+    """
+    try:
+        # The 'stream=True' is crucial for this to work
+        with requests.get(ESP32_STREAM_URL, stream=True, timeout=10) as r:
+            if r.status_code == 200:
+                # Yield each chunk of the response (which is part of the MJPEG stream)
+                for chunk in r.iter_content(chunk_size=1024):
+                    yield chunk
+            else:
+                print(f"Error receiving stream from ESP32: {r.status_code}")
+                yield b'' # Yield empty bytes if error
+    except requests.exceptions.RequestException as e:
+        print(f"Could not connect to ESP32 stream: {e}")
+        yield b'' # Yield empty bytes if connection fails
 
 @app.route('/')
 def index():
-    """Serves the main HTML page with the button."""
+    """Serves the main HTML page."""
     return render_template('index.html')
 
-@app.route('/get_image')
-def get_image():
+@app.route('/video_feed')
+def video_feed():
     """
-    Fetches the JPEG image from the ESP32 and relays it to the browser.
+    This is the endpoint the browser will connect to.
+    It returns the streaming response from the ESP32.
     """
-    try:
-        # Request the JPEG image from the ESP32-CAM
-        response = requests.get(ESP32_CAM_URL, timeout=10)
-        
-        # Raise an exception if the request was not successful
-        response.raise_for_status()
-        
-        # Return the response directly to the browser.
-        # The content (the JPEG image) and headers are passed through.
-        return Response(response.content, mimetype='image/jpeg')
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error connecting to ESP32-CAM: {e}")
-        return "Error: Could not connect to ESP32-CAM.", 500
+    return Response(generate_video_stream(), mimetype='multipart/x-mixed-replace; boundary=--frame')
 
 if __name__ == '__main__':
-    # Make the server accessible on your local network
-    app.run(host='0.0.0.0', port=5000)
+
+    app.run(debug=True,host='0.0.0.0', port=5000)

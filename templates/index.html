@@ -1,46 +1,86 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Fridge Camera</title>
+    <title>Live Smart Fridge Camera</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #captureBtn { font-size: 1.2em; padding: 10px 20px; cursor: pointer; }
-        #imageContainer { margin-top: 20px; border: 2px dashed #ccc; width: 240px; height: 240px; margin-left: auto; margin-right: auto; display: flex; justify-content: center; align-items: center; }
-        #imageDisplay { max-width: 100%; max-height: 100%; }
-        #message { color: #888; }
+        #controls button { font-size: 1.2em; padding: 10px 20px; cursor: pointer; }
+        #streamContainer { 
+            margin-top: 20px; 
+            border: 2px solid #ccc; 
+            min-width: 640px; 
+            min-height: 480px; 
+            margin-left: auto; 
+            margin-right: auto; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            background-color: #000;
+        }
+        #streamContainer img { max-width: 100%; }
+        #status { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
-    <h1>Smart Fridge Camera</h1>
-    <button id="captureBtn">Capture Image</button>
-    <div id="imageContainer">
-        <p id="message">Click the button to see the image</p>
-        <img id="imageDisplay" src="" alt="Captured from fridge" style="display:none;">
+    <h1>Smart Fridge Live View</h1>
+    <div id="controls">
+        <button id="startBtn">Start Live</button>
+        <button id="stopBtn" style="display:none;">Stop Live</button>
+    </div>
+    <div id="streamContainer">
+        <p id="status">Press "Start Live" to begin streaming.</p>
     </div>
 
     <script>
-        document.getElementById('captureBtn').addEventListener('click', function() {
-            var image = document.getElementById('imageDisplay');
-            var message = document.getElementById('message');
-            
-            message.innerText = 'Requesting image...';
-            image.style.display = 'none';
+        const startButton = document.getElementById('startBtn');
+        const stopButton = document.getElementById('stopBtn');
+        const container = document.getElementById('streamContainer');
+        const statusText = document.getElementById('status');
 
-            var imageUrl = '/get_image?' + new Date().getTime();
+        let streamImage = null;
+
+        function startStream() {
+            // Clear the container
+            container.innerHTML = '';
+            statusText.style.display = 'none';
+
+            // Create a new image element for the stream
+            streamImage = document.createElement('img');
+            // The src is our Python server's relay endpoint.
+            // Add a timestamp to prevent caching.
+            streamImage.src = '/video_feed?' + new Date().getTime();
             
-            image.onload = function() {
-                message.style.display = 'none';
-                image.style.display = 'block';
+            streamImage.onerror = () => {
+                container.innerHTML = '<p style="color:red;">Error: Could not connect to the camera stream. Is the ESP32 on and connected?</p>';
+                stopStream(); // Reset buttons
             };
-            image.onerror = function() {
-                message.innerText = 'Failed to load image.';
-                message.style.display = 'block';
-                image.style.display = 'none';
-            };
-            image.src = imageUrl;
-        });
+
+            container.appendChild(streamImage);
+
+            // Update button visibility
+            startButton.style.display = 'none';
+            stopButton.style.display = 'block';
+        }
+
+        function stopStream() {
+            if (streamImage) {
+                // Setting the src to empty effectively stops the browser from loading the stream
+                streamImage.src = '#';
+                streamImage.remove();
+                streamImage = null;
+            }
+            container.innerHTML = '<p id="status">Stream stopped.</p>';
+
+            // Update button visibility
+            startButton.style.display = 'block';
+            stopButton.style.display = 'none';
+        }
+
+        startButton.addEventListener('click', startStream);
+        stopButton.addEventListener('click', stopStream);
     </script>
 </body>
 </html>
-
