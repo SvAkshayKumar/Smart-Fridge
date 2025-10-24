@@ -3,197 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Akshay's Door Cam</title>
-    <style>
-        /* General Styling */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 24px;
-            color: #1c1e21;
-        }
-        .container {
-            max-width: 1200px;
-            margin: auto;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 24px;
-        }
-
-        /* Grid for Image Cards */
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 16px;
-        }
-        .capture-card {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .capture-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        .capture-card img {
-            width: 100%;
-            height: 150px;
-            object-fit: cover; /* Ensures image covers the area without distortion */
-            display: block;
-        }
-        .capture-info {
-            padding: 12px;
-            font-size: 12px;
-            color: #65676b;
-            border-top: 1px solid #ddd;
-        }
-
-        /* Modal Styling (for large image pop-up) */
-        .modal-backdrop {
-            display: none; /* Hidden by default */
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.85);
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            max-width: 90vw;
-            max-height: 90vh;
-        }
-        .modal-close {
-            position: absolute;
-            top: 20px;
-            right: 35px;
-            color: #f1f1f1;
-            font-size: 40px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.3s;
-        }
-        .modal-close:hover {
-            color: #bbb;
-        }
-    </style>
+    <title>Smart Fridge Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
-    <!-- Modal Structure (hidden) -->
-    <div id="imageModal" class="modal-backdrop">
-        <span class="modal-close" id="modalCloseBtn">&times;</span>
-        <img class="modal-content" id="modalImage">
-    </div>
-
     <div class="container">
-        <h1>Door Event Log</h1>
-        <div class="grid-container" id="gridContainer">
-            <!-- Images will be loaded here by Jinja2 and JavaScript -->
-            {% for capture in captures %}
-                <div class="capture-card" data-large-src="{{ capture.image_url }}" data-capture-id="{{ capture.id }}">
-                    <img src="{{ capture.image_url }}" alt="Door Capture">
-                    <div class="capture-info">
-                        {{ capture.inserted_at.split('T')[0] }} at {{ capture.inserted_at.split('T')[1].split('.')[0] }}
-                    </div>
-                </div>
-            {% endfor %}
+        <h1 class="page-title">Smart Fridge Dashboard</h1>
+        
+        <!-- Section for the Latest Captured Image -->
+        <div class="dashboard-card">
+            <h2>Last Captured Image</h2>
+            <div id="image-container">
+                <p class="placeholder">Awaiting first scan from your fridge...</p>
+            </div>
         </div>
-        {% if not captures %}
-            <p id="noCaptures" style="text-align: center;">No door events have been captured yet.</p>
-        {% endif %}
+
+        <!-- Section for Detected Items -->
+        <div class="dashboard-card">
+            <h2>Detected Inventory</h2>
+            <div id="inventory-container">
+                <!-- Item list will be populated here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Section for Gemini's Analysis -->
+        <div class="dashboard-card">
+            <h2>Gemini's Analysis</h2>
+            <div id="analysis-container">
+                <!-- AI suggestions will be populated here by JavaScript -->
+            </div>
+        </div>
     </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const modal = document.getElementById('imageModal');
-        const modalImg = document.getElementById('modalImage');
-        const closeBtn = document.getElementById('modalCloseBtn');
-        const gridContainer = document.getElementById('gridContainer');
-        let latestKnownId = -1; // Keep track of the newest image displayed
+    <script>
+        window.onload = async () => {
+            const imageContainer = document.getElementById('image-container');
+            const inventoryContainer = document.getElementById('inventory-container');
+            const analysisContainer = document.getElementById('analysis-container');
 
-        // Function to open the modal
-        function openModal(imgSrc) {
-            modal.style.display = "flex";
-            modalImg.src = imgSrc;
-        }
-
-        // Function to close the modal
-        function closeModal() {
-            modal.style.display = "none";
-        }
-
-        // Function to add click listeners to cards
-        function addClickListenersToCard(card) {
-            card.addEventListener('click', () => {
-                openModal(card.dataset.largeSrc);
-            });
-        }
-
-        // Add listeners to initially loaded cards
-        const initialCards = document.querySelectorAll('.capture-card');
-        if (initialCards.length > 0) {
-            latestKnownId = initialCards[0].dataset.captureId; // The first card is the newest
-            initialCards.forEach(addClickListenersToCard);
-        }
-
-        // Event listeners for closing the modal
-        closeBtn.onclick = closeModal;
-        modal.onclick = function(event) {
-            if (event.target === modal) { // Only close if clicking the backdrop
-                closeModal();
-            }
-        };
-
-        // --- DYNAMIC UPDATE LOGIC ---
-        async function fetchLatestCapture() {
             try {
-                const response = await fetch('/latest');
-                if (!response.ok) return; // Don't do anything if server has an error
-                const latestCapture = await response.json();
+            const response = await fetch('/latest');
+            const data = await response.json();
 
-                // Check if we have data and if it's a new capture
-                if (latestCapture && latestCapture.id > latestKnownId) {
-                    console.log("New capture found!", latestCapture);
-                    latestKnownId = latestCapture.id; // Update the latest known ID
-
-                    // Hide the 'no captures' message if it exists
-                    const noCapturesMsg = document.getElementById('noCaptures');
-                    if(noCapturesMsg) noCapturesMsg.style.display = 'none';
-
-                    // Create the new card HTML
-                    const newCardHTML = `
-                        <div class="capture-card" data-large-src="${latestCapture.image_url}" data-capture-id="${latestCapture.id}">
-                            <img src="${latestCapture.image_url}" alt="Door Capture">
-                            <div class="capture-info">
-                                ${latestCapture.inserted_at.split('T')[0]} at ${latestCapture.inserted_at.split('T')[1].split('.')[0]}
-                            </div>
-                        </div>`;
-
-                    // Add the new card to the top of the grid
-                    gridContainer.insertAdjacentHTML('afterbegin', newCardHTML);
-                    
-                    // Add a click listener to the newly created card
-                    const newCardElement = gridContainer.firstChild;
-                    addClickListenersToCard(newCardElement);
-                }
-            } catch (error) {
-                console.error("Error fetching latest capture:", error);
+            // 1. Populate the Image
+            console.log("Latest data received:", data);
+            if (data && data.image_url) {
+                imageContainer.innerHTML = `<img src="${data.image_url}" alt="Latest fridge content" class="fridge-image">`;
+            } else {
+                imageContainer.innerHTML = `<p class="placeholder">No image captured yet.</p>`;
             }
+
+            // 2. Populate the Inventory List
+            if (data && data.items && data.items.length > 0) {
+                const itemsHtml = data.items.map(item => `<li>${item.quantity} x ${item.type}</li>`).join('');
+                inventoryContainer.innerHTML = `<ul class="item-list">${itemsHtml}</ul>`;
+            } else {
+                inventoryContainer.innerHTML = `<p class="placeholder">No items detected yet.</p>`;
+            }
+
+            // 3. Populate Gemini's Analysis
+if (data && data.gemini_analysis) {
+    // Parse gemini_analysis JSON if needed
+    const analysis = typeof data.gemini_analysis === "string"
+        ? JSON.parse(data.gemini_analysis)
+        : data.gemini_analysis;
+
+    console.log("Gemini analysis received:", analysis);
+    console.log("Recipe suggestions:", analysis.recipeSuggestions);
+
+    const recipesHtml = (analysis.recipeSuggestions || []).map(r => `<li>${r}</li>`).join('');
+                
+    let analysisHtml = `
+        <div class="recipes">
+            <h3>Recipe Ideas:</h3>
+            <ul>${recipesHtml}</ul>
+        </div>
+    `;
+
+    if (analysis.isOrderRequired) {
+        localStorage.setItem('fridgeData', JSON.stringify(analysis));
+        analysisHtml += `<a href="/cart" class="btn-primary">View Suggested Order &rarr;</a>`;
+    } else {
+        analysisHtml += `<p><strong>Order Status:</strong> You seem to be well-stocked for now!</p>`;
+    }
+    analysisContainer.innerHTML = analysisHtml;
+} else {
+     analysisContainer.innerHTML = `<p class="placeholder">No analysis available.</p>`;
+}
+
+
+        } catch (error) {
+            console.error("Error fetching latest data:", error);
+            analysisContainer.innerHTML = '<p>Could not load analysis from the server.</p>';
         }
-
-        // Poll the server every 5 seconds for new images
-        setInterval(fetchLatestCapture, 5000);
-    });
+    };
 </script>
-
 </body>
 </html>
