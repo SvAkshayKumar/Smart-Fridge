@@ -9,7 +9,7 @@
 // ===================
 const char *ssid = "Rangapg16";
 const char *password = "password@16";
-const char *server_url = "http://192.1e-168.0.103:5000/newdata"; 
+const char *server_url = "http://192.168.0.103:5000/newdata"; 
 
 // GPIO Pins
 const int SENSOR_GPIO = 13;
@@ -19,16 +19,15 @@ const int DOOR_STATUS_PIN = 12;
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
-// --- MODIFICATION: New state flags for handling latest request ---
+// State flags for handling latest request
 volatile bool take_picture_flag = false;
-volatile bool is_uploading = false;      // Is an upload currently in progress?
-volatile bool process_is_stale = false;  // Has a newer request arrived, making the current one obsolete?
-// --- END OF MODIFICATION ---
+volatile bool is_uploading = false;
+volatile bool process_is_stale = false;
 
 TaskHandle_t SensorTask;
 
 // ====================================================================
-// CORE 0 TASK: Door Sensor Monitoring (Modified for responsiveness and new requests)
+// CORE 0 TASK: Door Sensor Monitoring
 // ====================================================================
 void doorSensorTask(void *pvParameters) {
   Serial.println("Sensor monitoring task started on Core 0.");
@@ -36,12 +35,10 @@ void doorSensorTask(void *pvParameters) {
   for (;;) {
     int currentState = digitalRead(SENSOR_GPIO);
     
-    // Control DOOR_STATUS_PIN based on the sensor's current state
-    // This will now be very responsive.
     if (currentState == HIGH) {
-      digitalWrite(DOOR_STATUS_PIN, HIGH); // Door is OPEN, turn pin ON
+      digitalWrite(DOOR_STATUS_PIN, HIGH);
     } else {
-      digitalWrite(DOOR_STATUS_PIN, LOW);  // Door is CLOSED, turn pin OFF
+      digitalWrite(DOOR_STATUS_PIN, LOW);
     }
 
     if (currentState == HIGH && !doorWasOpen) {
@@ -49,29 +46,24 @@ void doorSensorTask(void *pvParameters) {
       vTaskDelay(50 / portTICK_PERIOD_MS);
     }
     
-    // --- MODIFICATION: New trigger logic ---
     if (currentState == LOW && doorWasOpen) {
       Serial.println("EVENT: Door opened and closed. Triggering capture.");
       
-      // If a process is already running, flag it as stale/to be cancelled.
       if (is_uploading) {
         Serial.println("CANCELLATION: New request arrived during upload. Setting stale flag.");
         process_is_stale = true;
       }
       
-      take_picture_flag = true; // Signal Core 1 to start a (new) capture.
+      take_picture_flag = true;
       doorWasOpen = false;
-
-      // REMOVED the long delay here to make the task responsive.
     }
-    // --- END OF MODIFICATION ---
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
 // ====================================================================
-// CORE 1 FUNCTION: Capture and Send Photo (Modified to be cancellable)
+// CORE 1 FUNCTION: Capture and Send Photo (Modified with Timeout)
 // ====================================================================
 void captureAndSendPhoto() {
   Serial.println("Turning on flash and capturing...");
@@ -85,13 +77,11 @@ void captureAndSendPhoto() {
     return;
   }
 
-  // --- MODIFICATION: Check if a new request has made this one stale ---
   if (process_is_stale) {
     Serial.println("ABORTING: Process is stale. Discarding captured image.");
-    esp_camera_fb_return(fb); // Clean up the frame buffer
-    return; // Exit the function early
+    esp_camera_fb_return(fb);
+    return;
   }
-  // --- END OF MODIFICATION ---
 
   uint8_t *jpg_buf = NULL;
   size_t jpg_buf_len = 0;
@@ -103,19 +93,22 @@ void captureAndSendPhoto() {
     return;
   }
 
-  // --- MODIFICATION: Check if a new request has made this one stale ---
   if (process_is_stale) {
     Serial.println("ABORTING: Process is stale. Discarding converted JPEG.");
-    free(jpg_buf); // Clean up the jpeg buffer
-    return; // Exit the function early
+    free(jpg_buf);
+    return;
   }
-  // --- END OF MODIFICATION ---
 
   const char* model_output_json = "{\"items\":[{\"type\":\"Tomato\",\"quantity\":2},{\"type\":\"Apple\",\"quantity\":5},{\"type\":\"Cheese\",\"quantity\":1},{\"type\":\"Eggs\",\"quantity\":12},{\"type\":\"Milk\",\"quantity\":1}]}";
 
   Serial.println("Sending image and inventory data to server...");
   HTTPClient http;
   http.begin(server_url);
+  
+  // --- START OF FIX ---
+  // Set timeout to 20 seconds (20000 ms) to wait for Gemini API
+  http.setTimeout(20000); 
+  // --- END OF FIX ---
   
   http.addHeader("X-Metadata", model_output_json);
   http.addHeader("Content-Type", "image/jpeg");
@@ -195,13 +188,13 @@ void setup() {
 }
 
 // ====================================================================
-// LOOP: Runs continuously on Core 1 (Modified to manage upload states)
+// LOOP: Runs continuously on Core 1
 // ====================================================================
 void loop() {
   if (take_picture_flag) {
-    take_picture_flag = false; // Consume the flag immediately
-    process_is_stale = false;  // Reset stale flag for the new run
-    is_uploading = true;       // Set status to busy
+    take_picture_flag = false;
+    process_is_stale = false;
+    is_uploading = true;
     
     Serial.println("=== Starting New Capture and Upload Process ===");
     if (WiFi.status() == WL_CONNECTED) {
@@ -210,7 +203,7 @@ void loop() {
       Serial.println("Error: WiFi Disconnected.");
     }
     
-    is_uploading = false; // Set status to free
+    is_uploading = false;
     
     if(process_is_stale) {
       Serial.println("NOTICE: Process was cancelled, but finished before new one started.");

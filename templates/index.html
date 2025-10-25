@@ -1,102 +1,74 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Fridge Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <header class="main-header">
+        <h1>Smart Fridge Dashboard</h1>
+        <div class="notification-area" id="notification-area">
+            <i class="fas fa-bell" id="bell-icon"></i>
+            <span class="notification-badge" id="notification-badge">0</span>
+            <div class="notification-panel" id="notification-panel">
+                <!-- Notifications will be injected here by app.js -->
+            </div>
+        </div>
+    </header>
+
     <div class="container">
-        <h1 class="page-title">Smart Fridge Dashboard</h1>
-        
-        <!-- Section for the Latest Captured Image -->
-        <div class="dashboard-card">
-            <h2>Last Captured Image</h2>
-            <div id="image-container">
-                <p class="placeholder">Awaiting first scan from your fridge...</p>
-            </div>
+        <!-- Section for the 5 latest records -->
+        <h2 class="section-title">Latest Scans</h2>
+        <div class="records-carousel" id="records-carousel">
+            <!-- Record cards will be dynamically inserted here by app.js -->
+            <p class="placeholder">Fetching latest scans...</p>
         </div>
 
-        <!-- Section for Detected Items -->
-        <div class="dashboard-card">
-            <h2>Detected Inventory</h2>
-            <div id="inventory-container">
-                <!-- Item list will be populated here by JavaScript -->
+        <!-- Section for detailed analysis of the selected record -->
+        <h2 class="section-title">Detailed Analysis</h2>
+        <div class="details-grid" id="details-grid">
+            <div class="dashboard-card card-large" id="image-card">
+                <h2><i class="fas fa-camera"></i> Captured Image</h2>
+                <div id="image-container">
+                    <p class="placeholder">Select a scan above to view details.</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Section for Gemini's Analysis -->
-        <div class="dashboard-card">
-            <h2>Gemini's Analysis</h2>
-            <div id="analysis-container">
-                <!-- AI suggestions will be populated here by JavaScript -->
+            <div class="dashboard-card" id="inventory-card">
+                <h2><i class="fas fa-shopping-basket"></i> Detected Inventory</h2>
+                <div id="inventory-container">
+                    <p class="placeholder">No items detected.</p>
+                </div>
+            </div>
+
+            <div class="dashboard-card" id="recipes-card">
+                <h2><i class="fas fa-lightbulb"></i> Recipe Ideas</h2>
+                <div id="recipes-container">
+                    <p class="placeholder">No recipe suggestions available.</p>
+                </div>
+            </div>
+            
+            <div class="dashboard-card card-large" id="chart-card">
+                <h2><i class="fas fa-chart-bar"></i> Inventory Analysis</h2>
+                <div id="chart-container">
+                    <canvas id="inventoryChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        window.onload = async () => {
-            const imageContainer = document.getElementById('image-container');
-            const inventoryContainer = document.getElementById('inventory-container');
-            const analysisContainer = document.getElementById('analysis-container');
-
-            try {
-            const response = await fetch('/latest');
-            const data = await response.json();
-
-            // 1. Populate the Image
-            console.log("Latest data received:", data);
-            if (data && data.image_url) {
-                imageContainer.innerHTML = `<img src="${data.image_url}" alt="Latest fridge content" class="fridge-image">`;
-            } else {
-                imageContainer.innerHTML = `<p class="placeholder">No image captured yet.</p>`;
-            }
-
-            // 2. Populate the Inventory List
-            if (data && data.items && data.items.length > 0) {
-                const itemsHtml = data.items.map(item => `<li>${item.quantity} x ${item.type}</li>`).join('');
-                inventoryContainer.innerHTML = `<ul class="item-list">${itemsHtml}</ul>`;
-            } else {
-                inventoryContainer.innerHTML = `<p class="placeholder">No items detected yet.</p>`;
-            }
-
-            // 3. Populate Gemini's Analysis
-if (data && data.gemini_analysis) {
-    // Parse gemini_analysis JSON if needed
-    const analysis = typeof data.gemini_analysis === "string"
-        ? JSON.parse(data.gemini_analysis)
-        : data.gemini_analysis;
-
-    console.log("Gemini analysis received:", analysis);
-    console.log("Recipe suggestions:", analysis.recipeSuggestions);
-
-    const recipesHtml = (analysis.recipeSuggestions || []).map(r => `<li>${r}</li>`).join('');
-                
-    let analysisHtml = `
-        <div class="recipes">
-            <h3>Recipe Ideas:</h3>
-            <ul>${recipesHtml}</ul>
-        </div>
-    `;
-
-    if (analysis.isOrderRequired) {
-        localStorage.setItem('fridgeData', JSON.stringify(analysis));
-        analysisHtml += `<a href="/cart" class="btn-primary">View Suggested Order &rarr;</a>`;
-    } else {
-        analysisHtml += `<p><strong>Order Status:</strong> You seem to be well-stocked for now!</p>`;
-    }
-    analysisContainer.innerHTML = analysisHtml;
-} else {
-     analysisContainer.innerHTML = `<p class="placeholder">No analysis available.</p>`;
-}
-
-
-        } catch (error) {
-            console.error("Error fetching latest data:", error);
-            analysisContainer.innerHTML = '<p>Could not load analysis from the server.</p>';
-        }
-    };
-</script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
