@@ -4,55 +4,104 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Your Cart</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='cart.css') }}">
 </head>
 <body>
-    <div class="app-container">
-        <div class="header">
-            <a href="/" class="back-arrow">&lt;</a>
-            <h3>Cart</h3>
-            <div class="super-saver">Super Saver</div>
-        </div>
 
-        <div class="content">
-            <div class="info-banner">
-                <p>Free Delivery auto applied on this order</p>
+    <div class="mobile-view-container">
+        <!-- New: Confetti Container -->
+        <div id="confetti-container"></div>
+
+        <div class="app-container">
+            <div class="header">
+                <a href="/" class="back-arrow">&lt;</a>
+                <h3>Cart</h3>
+                <div class="super-saver">Super Saver</div>
             </div>
 
-            <div class="card" id="delivery-card">
-                <div class="delivery-time">
-                    <span class="clock-icon">🕒</span>
-                    <span>Delivery in 20 mins</span>
+            <div class="content">
+                <!-- New: Free delivery banner is now controlled by JS -->
+                <div class="info-banner" id="free-delivery-banner" style="display: none;">
+                    <p>🎉 Free Delivery auto applied on this order</p>
                 </div>
-                <div id="cart-items-container">
-                    <!-- Cart items will be injected here by JavaScript -->
+
+                <!-- New: Coupon Code Section -->
+                <div class="card coupon-card">
+                    <div class="coupon-content">
+                        <span class="coupon-icon">%</span>
+                        <div class="coupon-details">
+                            <span class="coupon-title">Apply Coupon</span>
+                            <input type="text" id="coupon-input" placeholder="Enter code SAVER99">
+                        </div>
+                        <button id="apply-coupon-btn">Apply</button>
+                    </div>
+                    <!-- This is where the "Saved X" message will appear -->
+                    <div id="coupon-message" class="coupon-success-message"></div>
                 </div>
-                <button class="add-more-btn">+ Add More Items</button>
-            </div>
 
-            <div class="card" id="price-drop-card">
-                <h4>Price Drop Alert</h4>
-                <div class="suggestions-container" id="suggestions-container">
-                    <!-- Suggestion items will be injected here by JavaScript -->
+
+                <div class="card" id="delivery-card">
+                    <div class="delivery-time">
+                        <span><strong>Delivery in 20 mins</strong></span>
+                    </div>
+                    <div id="cart-items-container">
+                        <!-- Cart items are loaded here by JavaScript -->
+                    </div>
+                    <button class="add-more-btn">+ Add More Items</button>
+                </div>
+
+                <!-- New: Bill Details Card -->
+                <div class="card" id="bill-details-card">
+                    <h4>Bill Details</h4>
+                    <div class="bill-row">
+                        <span>Item Total</span>
+                        <span id="bill-item-total">₹0.00</span>
+                    </div>
+                    <div class="bill-row" id="bill-discount-row" style="display: none;">
+                        <span>Discount</span>
+                        <span id="bill-discount-amount" class="discount-text">- ₹0.00</span>
+                    </div>
+                    <div class="bill-row" id="bill-delivery-row">
+                        <span>Delivery Fee</span>
+                        <span id="bill-delivery-fee">₹0.00</span>
+                    </div>
+                    <hr>
+                    <div class="bill-row total-bill">
+                        <strong><span>To Pay</span></strong>
+                        <strong><span id="bill-grand-total">₹0.00</span></strong>
+                    </div>
+                </div>
+
+
+                <div class="card" id="price-drop-card">
+                    <h4>Price Drop Alert</h4>
+                    <div class="suggestions-container" id="suggestions-container">
+                        <!-- Suggestion items are loaded here by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="card" id="delivery-address-card">
+                    <h4>Delivering to Other ⌄</h4>
+                    <p>room number 22, shri ranga pg for gents, Global vil...</p>
+                </div>
+
+                 <div class="card no-bag-card">
+                    <p>✅ We have opted you in for no bag delivery 🌿</p>
                 </div>
             </div>
 
-            <div class="card" id="delivery-address-card">
-                <h4>Delivering to Other ⌄</h4>
-                <p>room number 22, shri ranga pg for gents, Global vil...</p>
+            <div class="footer">
+                <a href="/order-placed" id="pay-button" class="pay-button">
+                    <div class="footer-price-details">
+                         <span id="total-price-display">₹0.00</span>
+                         <span class="view-bill-text">View Detailed Bill</span>
+                    </div>
+                    <span>Proceed to Pay</span>
+                </a>
             </div>
-             <div class="card no-bag-card">
-                <p>✅ We have opted you in for no bag delivery 🌿</p>
-            </div>
-        </div>
-
-        <div class="footer">
-            <a href="/order-placed" id="pay-button" class="pay-button">
-                Click to Pay ₹0.00
-            </a>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='cart.js') }}"></script>
 </body>
 </html>

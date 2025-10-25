@@ -108,27 +108,31 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * NEW: Fetches recipe steps from the server.
+     * MODIFIED: Now accepts an 'items' array and sends it in the request body.
      */
-    const fetchRecipeSteps = async (recipeName) => {
+    const fetchRecipeSteps = async (recipeName, items) => {
         try {
             const response = await fetch('/get_recipe_steps', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ recipe_name: recipeName })
+                // MODIFIED: Send both recipe name and the list of available items.
+                body: JSON.stringify({
+                    recipe_name: recipeName,
+                    available_items: items 
+                })
             });
 
             if (!response.ok) {
-                throw new Error(`Server responded with status: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server responded with status: ${response.status}`);
             }
             
             const data = await response.json();
             return data.steps; // Assuming the server returns { "steps": [...] }
         } catch (error) {
             console.error("Error fetching recipe steps:", error);
-            // Display an error in the steps container
             recipeStepsContainer.innerHTML = `<p class="placeholder">Failed to fetch recipe steps. Please try again.</p>`;
             return null;
         }
@@ -160,33 +164,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS ---
 
-    /**
-     * MODIFIED: This listener now handles fetching steps and showing a loading animation.
-     */
     recipesContainer.addEventListener('click', async (e) => {
         const recipeItem = e.target.closest('.recipe-item');
         if (!recipeItem) return;
 
-        const recipeName = recipeItem.dataset.recipeName;
+        // NEW: Get a reference to all recipe items
+        const allRecipeItems = recipesContainer.querySelectorAll('.recipe-item');
+        
+        try {
+            // NEW: Disable all recipe items immediately
+            allRecipeItems.forEach(item => item.classList.add('is-loading'));
 
-        // Highlight the selected recipe
-        document.querySelectorAll('.recipe-item').forEach(item => item.classList.remove('active'));
-        recipeItem.classList.add('active');
+            const recipeName = recipeItem.dataset.recipeName;
 
-        // Show loading animation
-        recipeStepsContainer.innerHTML = `
-            <div class="loader-container">
-                <div class="loader"></div>
-                <p>Fetching steps for ${recipeName}, one moment...</p>
-            </div>
-        `;
+            // Highlight the selected recipe (this will also be faded initially)
+            document.querySelectorAll('.recipe-item').forEach(item => item.classList.remove('active'));
+            recipeItem.classList.add('active');
 
-        // Fetch the recipe steps from the backend
-        const steps = await fetchRecipeSteps(recipeName);
+            // Show loading animation in the steps container
+            recipeStepsContainer.innerHTML = `
+                <div class="loader-container">
+                    <div class="loader"></div>
+                    <p>Generating steps for ${recipeName}...</p>
+                </div>
+            `;
 
-        // If the fetch was successful, render the steps
-        if (steps) {
-            renderRecipeSteps({ name: recipeName, steps: steps });
+            const availableItems = currentRecord.items || [];
+            
+            // Fetch the recipe steps from the backend
+            const steps = await fetchRecipeSteps(recipeName, availableItems);
+
+            // If the fetch was successful, render the steps
+            if (steps) {
+                renderRecipeSteps({ name: recipeName, steps: steps });
+            }
+        } catch (error) {
+            // Log any errors that might occur during the fetch
+            console.error("An error occurred during recipe generation:", error);
+            // The steps container will already show an error message from fetchRecipeSteps
+        } finally {
+            allRecipeItems.forEach(item => item.classList.remove('is-loading'));
         }
     });
 
@@ -210,8 +227,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const item = target.closest('.notification-item');
             if (item && item.dataset.type === 'order_suggestion') {
-                localStorage.setItem('fridgeData', item.dataset.payload);
-                window.location.href = '/cart';
+                // MODIFIED: Pass data via URL parameter instead of localStorage
+                
+                // 1. Get the payload string from the data attribute
+                const payloadString = item.dataset.payload;
+                
+                // 2. URL-encode the payload to make it safe to pass in a URL
+                const encodedPayload = encodeURIComponent(payloadString);
+                
+                // 3. Redirect to the cart page with the data as a URL parameter
+                window.location.href = `/cart?items=${encodedPayload}`;
             }
         }
     });
