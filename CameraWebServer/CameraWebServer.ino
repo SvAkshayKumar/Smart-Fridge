@@ -7,9 +7,9 @@
 // ===================
 // Configuration
 // ===================
-const char *ssid = "Rangapg16";
-const char *password = "password@16";
-const char *server_url = "http://192.168.0.103:5000/newdata"; 
+const char *ssid = "Akshay";
+const char *password = "abcdefgh";
+const char *server_url = "http://10.186.2.170:5000/newdata"; 
 
 // GPIO Pins
 const int SENSOR_GPIO = 13;
