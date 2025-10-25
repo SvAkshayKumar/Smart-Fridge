@@ -9,7 +9,7 @@
 <body>
 
     <div class="mobile-view-container">
-        <!-- New: Confetti Container -->
+        <!-- Confetti Container -->
         <div id="confetti-container"></div>
 
         <div class="app-container">
@@ -20,13 +20,13 @@
             </div>
 
             <div class="content">
-                <!-- New: Free delivery banner is now controlled by JS -->
-                <div class="info-banner" id="free-delivery-banner" style="display: none;">
-                    <p>🎉 Free Delivery auto applied on this order</p>
+                <!-- Dynamic delivery banner -->
+                <div class="info-banner" id="delivery-status-banner" style="display: none;">
+                    <!-- Content is controlled by JS -->
                 </div>
 
-                <!-- New: Coupon Code Section -->
-                <div class="card coupon-card">
+                <!-- Coupon Card -->
+                <div class="card coupon-card" id="coupon-card">
                     <div class="coupon-content">
                         <span class="coupon-icon">%</span>
                         <div class="coupon-details">
@@ -35,10 +35,8 @@
                         </div>
                         <button id="apply-coupon-btn">Apply</button>
                     </div>
-                    <!-- This is where the "Saved X" message will appear -->
                     <div id="coupon-message" class="coupon-success-message"></div>
                 </div>
-
 
                 <div class="card" id="delivery-card">
                     <div class="delivery-time">
@@ -50,7 +48,7 @@
                     <button class="add-more-btn">+ Add More Items</button>
                 </div>
 
-                <!-- New: Bill Details Card -->
+                <!-- Bill Details Card -->
                 <div class="card" id="bill-details-card">
                     <h4>Bill Details</h4>
                     <div class="bill-row">
@@ -72,7 +70,7 @@
                     </div>
                 </div>
 
-
+                <!-- Price Drop Card -->
                 <div class="card" id="price-drop-card">
                     <h4>Price Drop Alert</h4>
                     <div class="suggestions-container" id="suggestions-container">
@@ -80,25 +78,33 @@
                     </div>
                 </div>
 
+                <!-- Address Dropdown -->
                 <div class="card" id="delivery-address-card">
-                    <h4>Delivering to Other ⌄</h4>
-                    <p>room number 22, shri ranga pg for gents, Global vil...</p>
-                </div>
-
-                 <div class="card no-bag-card">
-                    <p>✅ We have opted you in for no bag delivery 🌿</p>
+                    <h4>Delivering to ⌄</h4>
+                     <select id="address-dropdown" class="address-dropdown">
+                        <option value="addr1">#302,C Block,RV University,Banglore</option>
+                        <option value="addr2">#502, Mechanical Block, RVCE, Bangalore</option>
+                    </select>
                 </div>
             </div>
 
             <div class="footer">
-                <a href="/order-placed" id="pay-button" class="pay-button">
+                <!-- *** IMPORTANT CHANGE: This is now a <button> instead of an <a> tag *** -->
+                <button id="pay-button" class="pay-button">
                     <div class="footer-price-details">
                          <span id="total-price-display">₹0.00</span>
                          <span class="view-bill-text">View Detailed Bill</span>
                     </div>
                     <span>Proceed to Pay</span>
-                </a>
+                </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Toast/Modal for Notifications -->
+    <div id="toast-overlay" class="hidden">
+        <div id="toast-message">
+            <p id="toast-text"></p>
         </div>
     </div>
 

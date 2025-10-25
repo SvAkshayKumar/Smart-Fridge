@@ -6,7 +6,7 @@ import time
 
 # --- Configuration ---
 # Ensure this IP address is correct for the machine running your Flask server
-SERVER_IP = "192.168.0.106"
+SERVER_IP = "10.186.2.170"
 SERVER_PORT = 5000
 NEW_DATA_URL = f"http://{SERVER_IP}:{SERVER_PORT}/newdata" 
 ALERT_URL = f"http://{SERVER_IP}:{SERVER_PORT}/alert" # New URL for the alert endpoint

@@ -3,16 +3,354 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Placed!</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Order Status</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-purple: #6a1b9a;
+            --light-green-bg: #e8f5e9;
+            --dark-green-text: #1b5e20;
+            --payment-banner-bg: #e0f2f1;
+            --payment-banner-text: #00796b;
+            --light-orange-bg: #fff3e0;
+            --light-orange-text: #e65100;
+            --border-color: #eeeeee;
+            --text-primary: #212121;
+            --text-secondary: #757575;
+        }
+
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .mobile-view-container {
+            width: 100%;
+            max-width: 420px;
+            background-color: #f0f2f5;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 10px;
+            background-color: #f0f2f5;
+        }
+
+        .header .title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header .back-arrow {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .help-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            border-radius: 50px;
+            border: 1px solid #e0e0e0;
+            background-color: #fff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        .card {
+            background-color: #fff;
+            margin: 0 10px 15px 10px;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        /* --- Arrival Card --- */
+        .arrival-card {
+            text-align: left;
+        }
+        .arrival-card p { margin: 0; }
+        .arrival-card .arrival-time {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--primary-purple);
+            line-height: 1.1;
+        }
+        .arrival-card .status {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-top: 8px;
+            color: var(--text-primary);
+        }
+        .arrival-card .sub-status {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        .delay-notice {
+            margin-top: 16px;
+            background-color: var(--light-orange-bg);
+            color: var(--light-orange-text);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        /* --- Delivery Info Card --- */
+        .delivery-info-card {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .info-row .icon {
+            width: 36px;
+            height: 36px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .info-row .details { flex-grow: 1; }
+        .info-row .details p { margin: 0; }
+        .info-row .name { font-weight: 700; font-size: 0.95rem; }
+        .info-row .role, .info-row .address { font-size: 0.85rem; color: var(--text-secondary); }
+        .info-row .saved { color: var(--dark-green-text); font-weight: 500; }
+        .info-row .arrow { font-size: 1.2rem; color: var(--text-secondary); }
+
+        /* --- Payment Banner --- */
+        .payment-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--payment-banner-bg);
+            color: var(--payment-banner-text);
+            padding: 12px 16px;
+            margin: 0 10px 15px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+        .payment-banner .total-pay { font-size: 1.1rem; }
+        .payment-banner .payment-method { display: flex; align-items: center; gap: 5px; font-size: 0.9rem;}
+
+
+        /* --- Bill Details Card (Retained Functionality) --- */
+        .bill-details-card h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0 0 15px 0;
+        }
+        .order-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        .order-item .item-info { flex-grow: 1; color: var(--text-primary); }
+        .order-item .item-price { font-weight: 500; color: var(--text-primary); }
+        .bill-summary-divider { border-top: 1px solid var(--border-color); margin: 15px 0; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+        .grand-total { font-weight: 700; font-size: 1.05rem; }
+
+        .order-footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #888;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <div class="order-placed-card">
-            <h1>✅ Order Placed!</h1>
-            <p>Your order will arrive in 15 minutes.</p>
-            <a href="/" class="btn-primary">Back to Dashboard</a>
+
+    <div class="mobile-view-container">
+        <header class="header">
+            <div class="title">
+                <a href="/" class="back-arrow">&lt;</a>
+                <h3>Order Status</h3>
+            </div>
+            <div class="help-button">
+                <span>!</span> Help
+            </div>
+        </header>
+
+        <div class="content">
+            <div class="card arrival-card">
+                <p>Arriving in</p>
+                <p class="arrival-time">12 mins</p>
+                <p class="status">Your order is getting packed</p>
+                <p class="sub-status">Expecting delay due to high demand</p>
+            </div>
+
+            <div class="card delivery-info-card">
+                <div class="delay-notice">I might be delayed</div>
+                <div class="info-row">
+                    <img src="static/profile.jpg" alt="Delivery Partner" class="icon">
+                    <div class="details">
+                        <p class="name">SANTOSH Rawat</p>
+                        <p class="role">Delivery Partner</p>
+                    </div>
+                </div>
+                 <!-- This is the placeholder for the map image -->
+                <img src="static/map.png" alt="Map showing delivery route" style="width: 100%; border-radius: 8px; height: 90px; object-fit: cover;">
+                <div class="info-row">
+                    <img src="static/profile2.png" alt="Items" class="icon">
+                    <div class="details">
+                        <p class="name">Akshay · <span id="item-count-display">0 items</span> · <span id="saved-amount-display" class="saved">₹0 saved</span></p>
+                        <p class="address" id="delivery-address-display">Loading address...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="payment-banner">
+                <span id="total-to-pay" class="total-pay">To Pay: ₹0.00</span>
+                <span class="payment-method">Ask for QR code to pay via UPI</span>
+            </div>
+
+            <!-- This card contains the retained order summary -->
+            <div class="card bill-details-card">
+                <h3 id="item-count-header">Bill Details</h3>
+                <div id="order-summary-container"></div>
+                <div class="bill-summary-divider"></div>
+                <div id="bill-summary-container"></div>
+                 <div class="order-footer">
+                    <span id="placed-at-time"></span>
+                    <span id="order-number"></span>
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const MASTER_PRODUCT_LIST = {
+                'onion': { name: 'Fresh Onion', price: 72 },
+                'tomato': { name: 'Hybrid Tomato', price: 40 },
+                'apple': { name: 'Kashmiri Apple', price: 110 },
+                'eggs': { name: 'Farm Fresh Eggs', price: 50 },
+                'yogurt': { name: 'Plain Curd/Yogurt', price: 45 }
+            };
+
+            const getCurrentTimeFormatted = () => {
+                const now = new Date();
+                let hours = now.getHours();
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12;
+                hours = hours ? hours : 12; // 0 hour should be 12
+                return `Placed at ${hours}:${minutes} ${ampm}`;
+            };
+            
+            const generateMockOrderId = () => {
+                return `Order #${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+            };
+
+            const orderDetailsString = sessionStorage.getItem('orderDetails');
+            const discountAmountString = sessionStorage.getItem('discountAmount');
+            const deliveryChargeString = sessionStorage.getItem('deliveryCharge');
+
+            if (!orderDetailsString) {
+                document.getElementById('order-summary-container').innerHTML = '<p>Error: Could not find order details.</p>';
+                return;
+            }
+
+            try {
+                const orderDetails = JSON.parse(orderDetailsString);
+                const discountAmount = parseFloat(discountAmountString || '0');
+                const deliveryCharge = parseFloat(deliveryChargeString || '0');
+                const { address, items, total } = orderDetails;
+
+                const deliverySavings = deliveryCharge === 0 ? 30 : 0; // If delivery is free, you saved 30
+                const totalSaved = discountAmount + deliverySavings;
+
+                // --- Populate NEW UI Elements ---
+                document.getElementById('delivery-address-display').textContent = `Delivering to ${address || 'Address not found'}`;
+                document.getElementById('saved-amount-display').textContent = `₹${totalSaved.toFixed(2)} saved`;
+                document.getElementById('total-to-pay').textContent = `To Pay: ₹${total}`;
+
+                // --- Populate Retained Bill Details Card ---
+                document.getElementById('placed-at-time').textContent = getCurrentTimeFormatted();
+                document.getElementById('order-number').textContent = generateMockOrderId();
+
+                const orderSummaryContainer = document.getElementById('order-summary-container');
+                const billSummaryContainer = document.getElementById('bill-summary-container');
+                orderSummaryContainer.innerHTML = '';
+                billSummaryContainer.innerHTML = '';
+                
+                let totalItems = 0;
+                for (const productId in items) {
+                    const quantity = items[productId];
+                    totalItems += Number(quantity);
+                    const product = MASTER_PRODUCT_LIST[productId];
+                    if (product) {
+                        const itemTotalPrice = (quantity * product.price).toFixed(2);
+                        orderSummaryContainer.innerHTML += `
+                            <div class="order-item">
+                                <span class="item-info">${quantity} x ${product.name}</span>
+                                <span class="item-price">₹${itemTotalPrice}</span>
+                            </div>`;
+                    }
+                }
+                
+                document.getElementById('item-count-display').textContent = `${totalItems} item${totalItems > 1 ? 's' : ''}`;
+                document.getElementById('item-count-header').textContent = `Bill Details (${totalItems} item${totalItems > 1 ? 's' : ''})`;
+
+                // Populate bill summary (discount, delivery, total)
+                if (discountAmount > 0) {
+                    billSummaryContainer.innerHTML += `
+                        <div class="summary-row">
+                            <span>Discount Applied</span>
+                            <span style="color: var(--dark-green-text);">- ₹${discountAmount.toFixed(2)}</span>
+                        </div>`;
+                }
+                billSummaryContainer.innerHTML += `
+                    <div class="summary-row">
+                        <span>Delivery Fee</span>
+                        <span>${deliveryCharge > 0 ? `₹${deliveryCharge.toFixed(2)}` : 'FREE'}</span>
+                    </div>`;
+                billSummaryContainer.innerHTML += `
+                    <div class="summary-row grand-total">
+                        <span>Grand Total</span>
+                        <span>₹${total}</span>
+                    </div>`;
+
+                // --- Clean up session storage ---
+                sessionStorage.removeItem('orderDetails');
+                sessionStorage.removeItem('discountAmount');
+                sessionStorage.removeItem('deliveryCharge');
+
+            } catch (error) {
+                console.error("Could not parse order details:", error);
+                document.body.innerHTML = '<h2>Error: Could not load order summary.</h2>';
+            }
+        });
+    </script>
 </body>
 </html>

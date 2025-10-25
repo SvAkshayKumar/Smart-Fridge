@@ -257,5 +257,5 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         fetchLatestRecords();
         fetchNotifications();
-    }, 10000);
+    }, 5000);
 });
