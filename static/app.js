@@ -1,29 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
     let allRecords = [];
-    let inventoryChart;
+    let currentRecord = null; // Store the currently viewed record
 
     // --- DOM ELEMENT SELECTORS ---
     const logsContainer = document.getElementById('logs-container');
     const modal = document.getElementById('details-modal');
     const closeButton = document.getElementById('close-button');
+    
+    // Modal Content Holders
     const imageContainer = document.getElementById('image-container');
     const inventoryContainer = document.getElementById('inventory-container');
     const recipesContainer = document.getElementById('recipes-container');
-    const chartCtx = document.getElementById('inventoryChart')?.getContext('2d');
+    const recipeStepsContainer = document.getElementById('recipe-steps-container');
 
     // --- RENDER FUNCTIONS ---
 
     /**
-     * Renders the list of the 5 latest logs on the main page.
-     * @param {Array} records - Array of record objects.
+     * Renders the list of the latest logs on the main page.
      */
     const renderLogCards = (records) => {
-        if (!records || records.length === 0) {
-            logsContainer.innerHTML = `<p class="placeholder">No logs found.</p>`;
-            return;
-        }
-
         logsContainer.innerHTML = records.map(record => {
             const date = new Date(record.inserted_at);
             const formattedDate = `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
@@ -35,13 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // Add click listeners to open the modal
         document.querySelectorAll('.log-card').forEach(card => {
             card.addEventListener('click', () => {
                 const selectedId = parseInt(card.dataset.id);
-                const selectedRecord = allRecords.find(r => r.id === selectedId);
-                if (selectedRecord) {
-                    renderDetailedView(selectedRecord);
+                currentRecord = allRecords.find(r => r.id === selectedId);
+                if (currentRecord) {
+                    renderModalContent(currentRecord);
                     modal.style.display = 'block';
                 }
             });
@@ -49,57 +44,56 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * Renders the detailed view inside the modal.
-     * @param {object} record - The record object to display.
+     * Renders the entire content of the modal for a given record.
      */
-    const renderDetailedView = (record) => {
-        imageContainer.innerHTML = record.image_url ? `<img src="${record.image_url}" alt="Fridge scan #${record.id}" class="fridge-image">` : `<p class="placeholder">No image.</p>`;
-        inventoryContainer.innerHTML = record.items?.length > 0 ? `<ul>${record.items.map(item => `<li>${item.quantity} x ${item.type}</li>`).join('')}</ul>` : `<p class="placeholder">No items detected.</p>`;
-        recipesContainer.innerHTML = record.gemini_analysis?.recipeSuggestions?.length > 0 ? `<ul>${record.gemini_analysis.recipeSuggestions.map(r => `<li>${r}</li>`).join('')}</ul>` : `<p class="placeholder">No recipes.</p>`;
-        renderInventoryChart(record.items || []);
+    const renderModalContent = (record) => {
+        // 1. Render Photo
+        imageContainer.innerHTML = record.image_url 
+            ? `<img src="${record.image_url}" alt="Fridge scan" class="fridge-image">` 
+            : `<p class="placeholder">No image available.</p>`;
+
+        // 2. Render Inventory
+        inventoryContainer.innerHTML = record.items?.length > 0 
+            ? `<ul>${record.items.map(item => `<li>${item.quantity} x ${item.type}</li>`).join('')}</ul>` 
+            : `<p class="placeholder">No items detected.</p>`;
+
+        // 3. Render Recipe Suggestions
+        // IMPORTANT: Assumes gemini_analysis.recipeSuggestions is an array of objects like {name: '...', steps: ['...', '...']}
+        if (record.gemini_analysis?.recipeSuggestions?.length > 0) {
+            recipesContainer.innerHTML = `<ul class="recipes-list">${record.gemini_analysis.recipeSuggestions.map(recipe => 
+                `<li class="recipe-item" data-recipe-name="${recipe.name}">${recipe.name}</li>`
+            ).join('')}</ul>`;
+        } else {
+            recipesContainer.innerHTML = `<p class="placeholder">No suggestions available.</p>`;
+        }
+        
+        // 4. Clear and reset the recipe steps section
+        recipeStepsContainer.innerHTML = `<p class="placeholder">Click on a recipe suggestion above to see the steps.</p>`;
     };
 
     /**
-     * Renders or updates the inventory bar chart in the modal.
-     * @param {Array} items - Array of item objects.
+     * Renders the detailed steps for a single recipe in the modal's bottom section.
      */
-    const renderInventoryChart = (items) => {
-        if (!chartCtx) return;
-        if (inventoryChart) inventoryChart.destroy();
+    const renderRecipeSteps = (recipe) => {
+        if (!recipe || !recipe.steps) {
+            recipeStepsContainer.innerHTML = `<p class="placeholder">Recipe steps not found.</p>`;
+            return;
+        }
 
-        inventoryChart = new Chart(chartCtx, {
-            type: 'bar',
-            data: {
-                labels: items.map(item => item.type),
-                datasets: [{
-                    label: 'Item Quantity',
-                    data: items.map(item => item.quantity),
-                    backgroundColor: 'rgba(187, 134, 252, 0.6)',
-                    borderColor: 'rgba(187, 134, 252, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
+        const stepsHtml = recipe.steps.map(step => `<li>${step}</li>`).join('');
+        recipeStepsContainer.innerHTML = `
+            <h4>Steps for ${recipe.name}</h4>
+            <ol class="steps-list">${stepsHtml}</ol>
+        `;
     };
 
-    // --- API FETCH FUNCTIONS ---
-
-    /**
-     * Fetches the 5 latest records and updates the UI.
-     */
+    // --- API FETCH FUNCTION ---
     const fetchLatestRecords = async () => {
         try {
+            // This is a mock fetch. Replace with your actual API endpoint.
             const response = await fetch('/latest-records');
             const data = await response.json();
             
-            // Simple check to see if data has changed
             if (JSON.stringify(data) !== JSON.stringify(allRecords)) {
                 allRecords = data;
                 renderLogCards(allRecords);
@@ -112,7 +106,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS ---
 
-    // Close the modal
+    // Listener for clicking a recipe suggestion (uses event delegation)
+    recipesContainer.addEventListener('click', (e) => {
+        const recipeItem = e.target.closest('.recipe-item');
+        if (!recipeItem) return;
+
+        const recipeName = recipeItem.dataset.recipeName;
+        const recipeData = currentRecord.gemini_analysis.recipeSuggestions.find(r => r.name === recipeName);
+        
+        if (recipeData) {
+            // Highlight the selected recipe
+            document.querySelectorAll('.recipe-item').forEach(item => item.classList.remove('active'));
+            recipeItem.classList.add('active');
+            
+            renderRecipeSteps(recipeData);
+        }
+    });
+
+    // Listeners for closing the modal
     closeButton.onclick = () => modal.style.display = 'none';
     window.onclick = (event) => {
         if (event.target == modal) {
@@ -120,14 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- INITIALIZATION & DYNAMIC UPDATES ---
-    const initializeDashboard = () => {
-        fetchLatestRecords();
-    };
-
-    // Initial load
-    initializeDashboard();
-
-    // Set up polling for live updates every 10 seconds
-    setInterval(fetchLatestRecords, 10000);
+    // --- INITIALIZATION ---
+    fetchLatestRecords();
+    setInterval(fetchLatestRecords, 10000); // Dynamic updates
 });

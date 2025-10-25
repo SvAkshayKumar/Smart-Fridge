@@ -8,29 +8,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header class="main-header">
         <h1>Smart Fridge Dashboard</h1>
-        <div class="notification-area" id="notification-area">
-            <i class="fas fa-bell" id="bell-icon"></i>
-            <span class="notification-badge" id="notification-badge">0</span>
-            <div class="notification-panel" id="notification-panel">
-                <!-- Notifications will be injected here by app.js -->
-            </div>
-        </div>
     </header>
 
     <div class="container">
-        <h2 class="section-title">Latest 5 Logs</h2>
+        <h2 class="section-title">Latest Logs</h2>
         <div class="logs-container" id="logs-container">
-            <!-- Latest 5 logs will be dynamically inserted here -->
+            <!-- Latest logs will be dynamically inserted here -->
             <p class="placeholder">Fetching latest logs...</p>
         </div>
     </div>
@@ -39,26 +28,33 @@
     <div class="modal" id="details-modal">
         <div class="modal-content">
             <span class="close-button" id="close-button">&times;</span>
-            <h2 class="section-title">Detailed Analysis</h2>
-            <div class="details-grid" id="details-grid">
-                <div class="dashboard-card card-large" id="image-card">
-                    <h2><i class="fas fa-camera"></i> Captured Image</h2>
-                    <div id="image-container"></div>
-                </div>
-                <div class="dashboard-card" id="inventory-card">
-                    <h2><i class="fas fa-shopping-basket"></i> Detected Inventory</h2>
-                    <div id="inventory-container"></div>
-                </div>
-                <div class="dashboard-card" id="recipes-card">
-                    <h2><i class="fas fa-lightbulb"></i> Recipe Ideas</h2>
-                    <div id="recipes-container"></div>
-                </div>
-                <div class="dashboard-card card-large" id="chart-card">
-                    <h2><i class="fas fa-chart-bar"></i> Inventory Analysis</h2>
-                    <div id="chart-container">
-                        <canvas id="inventoryChart"></canvas>
+            
+            <!-- Top Section of Modal -->
+            <div class="modal-top-section">
+                <div class="modal-card" id="image-card">
+                    <h3>Photo</h3>
+                    <div id="image-container">
+                        <p class="placeholder">No image</p>
                     </div>
                 </div>
+                <div class="modal-card" id="inventory-card">
+                    <h3>List of items</h3>
+                    <div id="inventory-container">
+                        <p class="placeholder">No items</p>
+                    </div>
+                </div>
+                <div class="modal-card" id="recipes-card">
+                    <h3>Recipe Suggestions</h3>
+                    <div id="recipes-container">
+                        <p class="placeholder">No suggestions</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section of Modal for Recipe Steps -->
+            <div class="modal-bottom-section" id="recipe-steps-container">
+                <!-- Recipe steps will be injected here when a recipe is clicked -->
+                <p class="placeholder">Click on a recipe suggestion above to see the steps.</p>
             </div>
         </div>
     </div>

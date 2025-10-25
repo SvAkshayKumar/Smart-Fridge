@@ -6,7 +6,7 @@ import io
 
 # --- Configuration ---
 # Ensure this IP address is correct for the machine running your Flask server
-SERVER_URL = "http://192.168.0.103:5000/newdata" 
+SERVER_URL = "http://10.186.2.170:5000/newdata" 
 
 # --- ACTION REQUIRED: EDIT THIS LINE ---
 # Change this to the exact filename of the image in the same folder.
