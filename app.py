@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from supabase import create_client, Client
 from datetime import datetime, timedelta
@@ -26,11 +27,13 @@ def get_gemini_suggestions(items_list):
     this is the list of items currently in the fridge: {json.dumps(items_list)}.
     Based on these items, determine if a grocery order is needed. If so, suggest recipes and create a shopping list.
     Respond ONLY in JSON format following this schema:
+    Only add the items that are low and my model is trained only on this list of items: Tomato, Apple, Eggs, Onion, Yogurt.
+    In the recipe suggestions, only suggest recipes that can be made with the items in the fridge and only say the dish name.
     Use this structure EXACTLY:
     {{
       "isOrderRequired": <boolean>,
       "recipeSuggestions": ["<string>", "<string>", ...],
-      "orderList": ["<string>", "<string>", ...]
+      "orderList": [{{"Productname": "Quantity"}}, {{"Productname": "Quantity"}}, ...]
     }}
     """
     try:
@@ -77,20 +80,36 @@ def new_data():
         if gemini_analysis.get("isOrderRequired"):
             order_list = gemini_analysis.get("orderList", [])
             num_items = len(order_list)
+            
             # Create a more informative notification title
             notification_title = f"New suggestion from agent: {num_items} items in cart"
             
-            notification_payload = {"orderList": order_list}
-            supabase.table("notifications").insert({
+            # Prepare payload
+            notification_payload = {
+                "orderList": order_list
+            }
+
+            # Build the record to insert
+            notification_data = {
                 "type": "order_suggestion",
                 "title": notification_title,
                 "message": "Click to view the shopping list prepared by Gemini.",
                 "payload": notification_payload
-            }).execute()
+            }
+
+            # Insert into Supabase (assuming you've already initialized `supabase`)
+            response = supabase.table("notifications").insert(notification_data).execute()
+
+            # Optional: check the response
+            if response.data:
+                print("✅ Notification inserted successfully:", response.data)
+            else:
+                print("⚠️ Insert failed:", response.error)
+
 
         # Upload image to Supabase Storage
         file_name = f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-        upload_response = supabase.storage.from_(IMAGE_BUCKET).upload(
+        supabase.storage.from_(IMAGE_BUCKET).upload(
             path=file_name,
             file=image_bytes,
             file_options={"content-type": "image/jpeg"}
@@ -123,6 +142,8 @@ def latest_records():
                 if 'gemini_analysis' in record and isinstance(record['gemini_analysis'], str):
                     try:
                         record['gemini_analysis'] = json.loads(record['gemini_analysis'])
+                        # print(f"Parsed gemini_analysis: {record['gemini_analysis']}")
+                        # print("recipeSuggestions:", record['gemini_analysis'].get('recipeSuggestions', []))
                     except json.JSONDecodeError:
                         record['gemini_analysis'] = {} # Handle malformed JSON
             return jsonify(response.data)
@@ -153,6 +174,91 @@ def mark_as_read():
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def parse_recipe_steps(text_response: str) -> list[str]:
+    """
+    Cleans and parses the raw text from Gemini into a list of recipe steps.
+    This function is robust enough to handle numbered lists, bullet points, etc.
+    """
+    if not text_response:
+        return []
+
+    # Split the response by newlines to get individual lines
+    lines = text_response.strip().split('\n')
+    
+    cleaned_steps = []
+    for line in lines:
+        # Remove any leading/trailing whitespace from the line
+        clean_line = line.strip()
+        
+        # Use a regular expression to remove common list markers (e.g., "1.", "1)", "-", "*")
+        clean_line = re.sub(r'^\s*\d+[\.\)]\s*|^\s*[\*\-]\s*', '', clean_line)
+        
+        # Only add the step if the line is not empty after cleaning
+        if clean_line:
+            cleaned_steps.append(clean_line)
+            
+    return cleaned_steps
+
+# --- NEW API ENDPOINT FOR RECIPE STEPS ---
+@app.route('/get_recipe_steps', methods=['POST'])
+def get_recipe_steps():
+    """
+    Receives a recipe name, generates the steps using Gemini,
+    and returns them in a JSON array.
+    """
+    # 1. Get the recipe name from the incoming request
+    data = request.get_json()
+    print("-"*20)
+    print("-"*20)
+
+    print("-"*20)
+
+    print(data)
+    print("-"*20)
+
+    print("-"*20)
+    print("-"*20)
+
+    if not data or 'recipe_name' not in data:
+        return jsonify({"error": "Missing 'recipe_name' in request body"}), 400
+
+    recipe_name = data.get('recipe_name')
+    print(f"Received request to generate steps for: {recipe_name}")
+
+    # 2. Engineer a specific prompt for Gemini
+    # This prompt instructs the model to only return the steps, making the output predictable.
+    prompt = f"""
+    You are a recipe assistant. Your task is to generate a concise, step-by-step recipe for "{recipe_name}".
+
+    Follow these instructions EXACTLY:
+    1.  Provide ONLY the cooking or preparation steps.
+    2.  Do NOT include a title, an introduction, a list of ingredients, or any concluding remarks.
+    3.  Format your entire response as a simple numbered or bulleted list.
+    """
+
+    try:
+        # 3. Initialize the Gemini model and call the API
+        # Using a model well-suited for instruction-following and generation.
+        model = genai.GenerativeModel('gemini-2.5-flash') 
+        response = model.generate_content(prompt)
+        
+        # 4. Parse the raw text response into a clean list of steps
+        steps = parse_recipe_steps(response.text)
+        
+        if not steps:
+            # Handle cases where Gemini might return an empty or unusable response
+            print(f"Warning: Gemini did not return valid steps for '{recipe_name}'.")
+            return jsonify({"error": f"Could not generate steps for '{recipe_name}'."}), 404
+
+        print(f"✅ Successfully generated {len(steps)} steps for '{recipe_name}'.")
+        # 5. Return the steps in the format expected by the frontend
+        return jsonify({"steps": steps})
+
+    except Exception as e:
+        # Handle potential API errors (e.g., content safety blocks, network issues)
+        print(f"CRITICAL ERROR calling Gemini for recipe steps: {e}")
+        return jsonify({"error": "Failed to generate recipe steps due to an internal error."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

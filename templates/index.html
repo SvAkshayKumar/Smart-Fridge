@@ -8,12 +8,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <header class="main-header">
         <h1>Smart Fridge Dashboard</h1>
+        <div class="notification-area" id="notification-area">
+            <i class="fas fa-bell" id="bell-icon"></i>
+            <span class="notification-badge" id="notification-badge">0</span>
+            <div class="notification-panel" id="notification-panel">
+                <!-- Notifications will be injected here -->
+            </div>
+        </div>
     </header>
 
     <div class="container">
@@ -24,12 +33,10 @@
         </div>
     </div>
 
-    <!-- Modal for Detailed Analysis -->
+    <!-- Modal for Detailed Analysis (Initially Hidden) -->
     <div class="modal" id="details-modal">
         <div class="modal-content">
             <span class="close-button" id="close-button">&times;</span>
-            
-            <!-- Top Section of Modal -->
             <div class="modal-top-section">
                 <div class="modal-card" id="image-card">
                     <h3>Photo</h3>
@@ -50,10 +57,7 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Bottom Section of Modal for Recipe Steps -->
             <div class="modal-bottom-section" id="recipe-steps-container">
-                <!-- Recipe steps will be injected here when a recipe is clicked -->
                 <p class="placeholder">Click on a recipe suggestion above to see the steps.</p>
             </div>
         </div>
