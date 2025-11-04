@@ -1,102 +1,86 @@
-import os
 import cv2
 import torch
 import numpy as np
-import requests
 from collections import Counter
-from ultralytics import YOLO
 import traceback
+from ultralytics import YOLO
 
-# ================================
-# CONFIGURATION
-# ================================
-# Replace with your own file ID from Google Drive
-GOOGLE_DRIVE_FILE_ID = "1B_ISa9Bc_viTzhH9Rxa4e3wQUdPsD_PM"
-MODEL_FILENAME = "best_Model.pt"
-LOCAL_MODEL_PATH = os.path.join(os.getcwd(), MODEL_FILENAME)
+# --- Configuration ---
+# ACTION REQUIRED: Ensure this path points to your actual model file.
+# Using a raw string (r"...") is a good practice for Windows paths to avoid issues with backslashes.
+YOLO_MODEL_PATH = r"C:\Users\adeva\Videos\Projects\esp32cam\best_Model.pt"
 
-# ================================
-# DOWNLOAD MODEL FROM GOOGLE DRIVE
-# ================================
-def download_from_google_drive(file_id: str, destination: str) -> bool:
-    """
-    Downloads a file from Google Drive using its file ID.
-    Returns True if successful, False otherwise.
-    """
-    try:
-        if os.path.exists(destination):
-            print(f"✅ Model already exists locally at {destination}")
-            return True
-
-        print(f"⬇️  Downloading model from Google Drive (File ID: {file_id})...")
-
-        # Direct download URL
-        url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        response = requests.get(url, stream=True)
-
-        if response.status_code != 200:
-            raise Exception(f"Google Drive download failed with status {response.status_code}")
-
-        # Save the model
-        with open(destination, "wb") as f:
-            for chunk in response.iter_content(1024 * 1024):  # 1MB chunks
-                f.write(chunk)
-
-        print(f"✅ Model downloaded and saved to {destination}")
-        return True
-
-    except Exception as e:
-        print(f"❌ ERROR downloading model from Google Drive: {e}")
-        traceback.print_exc()
-        return False
-
-
-# ================================
-# LOAD YOLO MODEL
-# ================================
-if download_from_google_drive(GOOGLE_DRIVE_FILE_ID, LOCAL_MODEL_PATH):
-    try:
-        model = YOLO(LOCAL_MODEL_PATH)
-        print("✅ YOLO model loaded successfully.")
-    except Exception as e:
-        print(f"❌ CRITICAL ERROR: Failed to load YOLO model. Error: {e}")
-        model = None
-else:
+# --- Load the YOLO Model ---
+# This block runs once when the application starts, loading the model into memory.
+try:
+    # Use the ultralytics YOLO class to load your custom-trained model.
+    model = YOLO(YOLO_MODEL_PATH)
+    print("✅ YOLO model loaded successfully using the 'ultralytics' library.")
+except Exception as e:
+    print(f"❌ CRITICAL ERROR: Failed to load YOLO model from '{YOLO_MODEL_PATH}'.")
+    print(f"   Error: {e}")
+    print("   Please ensure the path is correct and the 'ultralytics' library is installed (`pip install ultralytics`).")
+    # Set model to None so the app can still run, but prediction will be disabled.
     model = None
 
-
-# ================================
-# PREDICTION FUNCTION
-# ================================
 def predict_and_count_items(image_bytes: bytes) -> list:
     """
     Takes raw image bytes, runs them through the loaded YOLO model,
     and returns a structured list of detected items and their counts.
+
+    Args:
+        image_bytes: The raw byte data of the JPEG image from the ESP32.
+
+    Returns:
+        A list of dictionaries, e.g., [{"type": "Tomato", "quantity": 15}, ...].
+        Returns an empty list if the model isn't loaded or an error occurs.
     """
     if model is None:
-        print("⚠️ Model not loaded — skipping prediction.")
+        print("⚠️ Model is not loaded. Skipping prediction.")
         return []
 
     try:
-        # Decode image
+        # 1. Decode the image
+        # Convert the raw image bytes into a NumPy array.
         np_arr = np.frombuffer(image_bytes, np.uint8)
+        # Decode the NumPy array into a color image format (BGR) that OpenCV can use.
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # Run inference
+        # 2. Perform inference
+        # The model directly takes the image and returns a list of result objects.
         results = model(img)
-        class_names = results[0].names
 
-        # Extract detections
-        detected = [class_names[int(box.cls[0])] for box in results[0].boxes]
+        # --- 3. Process Results (CORRECTED METHOD) ---
+        # The '.pandas()' method is from older versions. The new 'results' object is handled differently.
+        detected_names = []
+        
+        # The result object contains the names map (e.g., {0: 'apple', 1: 'tomato'})
+        class_names = results[0].names 
+        
+        # Iterate through all detected boxes in the first result.
+        for box in results[0].boxes:
+            # Get the class index (e.g., 0, 1) and convert it to an integer.
+            class_id = int(box.cls[0])
+            # Use the class index to look up the class name (e.g., 'apple').
+            item_name = class_names[class_id]
+            detected_names.append(item_name)
+        
+        # 4. Count and Format the Output
+        # Use the Counter utility to efficiently count occurrences of each item.
+        # e.g., ['tomato', 'tomato', 'apple'] -> {'tomato': 2, 'apple': 1}
+        ingredient_counts = Counter(detected_names)
 
-        # Count occurrences
-        counts = Counter(detected)
-        formatted = [{"type": k.capitalize(), "quantity": v} for k, v in counts.items()]
+        # Format the counted items into the JSON structure required by app.py.
+        formatted_ingredients = [
+            {"type": ingredient.capitalize(), "quantity": count} 
+            for ingredient, count in ingredient_counts.items()
+        ]
 
-        print(f"✅ Detection complete: {formatted}")
-        return formatted
+        print(f"✅ Detection complete. Found: {formatted_ingredients}")
+        return formatted_ingredients
 
     except Exception as e:
-        print(f"❌ ERROR during YOLO prediction: {e}")
+        print(f"❌ ERROR during YOLO prediction process: {e}")
         traceback.print_exc()
+        # Return an empty list to prevent the main app from crashing.
         return []
