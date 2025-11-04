@@ -2,12 +2,8 @@ Flask
 gunicorn
 supabase
 google-generativeai
-protobuf
 torch
 ultralytics
 opencv-python
 numpy
 Pillow
-pandas
-requests
-python-dotenv

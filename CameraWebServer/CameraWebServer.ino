@@ -9,7 +9,7 @@
 // ===================
 const char *ssid = "Akshay";
 const char *password = "abcdefgh";
-const char *server_url = "https://iot-smart-fridge.onrender.com/newdata"; 
+const char *server_url = "http://192.168.0.104:5000/newdata"; 
 
 // GPIO Pins
 const int SENSOR_GPIO = 13;

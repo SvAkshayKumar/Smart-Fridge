@@ -120,7 +120,7 @@ body {
     width: 100%;
     height: auto;
     border-radius: 4px;
-    /* transform: rotate(180deg); */
+    transform: rotate(180deg);
 }
 
 .recipes-list {
