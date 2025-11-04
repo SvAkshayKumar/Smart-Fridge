@@ -6,10 +6,9 @@ import time
 
 # --- Configuration ---
 # Ensure this IP address is correct for the machine running your Flask server
-SERVER_IP = "192.168.0.104"
-SERVER_PORT = 5000
-NEW_DATA_URL = f"http://{SERVER_IP}:{SERVER_PORT}/newdata" 
-ALERT_URL = f"http://{SERVER_IP}:{SERVER_PORT}/alert" # New URL for the alert endpoint
+
+NEW_DATA_URL = f"https://iot-smart-fridge.onrender.com/newdata" 
+ALERT_URL = f"https://iot-smart-fridge.onrender.com/alert" # New URL for the alert endpoint
 
 # --- ACTION REQUIRED: EDIT THIS LINE ---
 # Change this to the exact filename of the image in the same folder.
