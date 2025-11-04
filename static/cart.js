@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const productContainer = e.target.closest('[data-product-id]');
         if (!productContainer) return;
         const productId = productContainer.dataset.productId;
-        if (e.target.matches('.btn-increase')) cart[productId] = (cart[productId] || 0) + 1;
+        if (e.target.matches('.btn-increase')) cart[productId] = (Number(cart[productId] || 0)) + 1;
         else if (e.target.matches('.btn-decrease')) {
             cart[productId]--;
             if (cart[productId] <= 0) delete cart[productId];

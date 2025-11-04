@@ -9,7 +9,7 @@
 // ===================
 const char *ssid = "Akshay";
 const char *password = "abcdefgh";
-const char *server_url = "http://10.186.2.170:5000/newdata"; 
+const char *server_url = "http://192.168.0.104:5000/newdata"; 
 
 // GPIO Pins
 const int SENSOR_GPIO = 13;
@@ -99,8 +99,6 @@ void captureAndSendPhoto() {
     return;
   }
 
-  const char* model_output_json = "{\"items\":[{\"type\":\"Tomato\",\"quantity\":2},{\"type\":\"Apple\",\"quantity\":5},{\"type\":\"Cheese\",\"quantity\":1},{\"type\":\"Eggs\",\"quantity\":12},{\"type\":\"Milk\",\"quantity\":1}]}";
-
   Serial.println("Sending image and inventory data to server...");
   HTTPClient http;
   http.begin(server_url);
@@ -109,8 +107,6 @@ void captureAndSendPhoto() {
   // Set timeout to 20 seconds (20000 ms) to wait for Gemini API
   http.setTimeout(20000); 
   // --- END OF FIX ---
-  
-  http.addHeader("X-Metadata", model_output_json);
   http.addHeader("Content-Type", "image/jpeg");
 
   int httpResponseCode = http.POST(jpg_buf, jpg_buf_len);
