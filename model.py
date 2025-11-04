@@ -8,7 +8,7 @@ from ultralytics import YOLO
 # --- Configuration ---
 # ACTION REQUIRED: Ensure this path points to your actual model file.
 # Using a raw string (r"...") is a good practice for Windows paths to avoid issues with backslashes.
-YOLO_MODEL_PATH = r"C:\Users\adeva\Videos\Projects\esp32cam\best_Model.pt"
+YOLO_MODEL_PATH = r"best_Model.pt"
 
 # --- Load the YOLO Model ---
 # This block runs once when the application starts, loading the model into memory.
