@@ -9,9 +9,10 @@
 // ===================
 const char *ssid = "Akshay";
 const char *password = "abcdefgh";
-const char *server_url = "http://172.16.187.8:5000/newdata"; 
+const char *server_url = "http://192.168.1.128:5000/newdata"; 
 
 // GPIO Pins
+
 const int SENSOR_GPIO = 13;
 const int FLASH_GPIO = 4;
 const int DOOR_STATUS_PIN = 12;
