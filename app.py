@@ -244,3 +244,6 @@ def get_recipe_steps():
         if not steps: return jsonify({"error": f"Could not generate steps for '{recipe_name}'."}), 404
         return jsonify({"steps": steps})
     except Exception as e: return jsonify({"error": "Failed to generate recipe steps due to an internal error."}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

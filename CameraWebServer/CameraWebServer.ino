@@ -9,10 +9,9 @@
 // ===================
 const char *ssid = "Akshay";
 const char *password = "abcdefgh";
-const char *server_url = "http://192.168.1.128:5000/newdata"; 
+const char *server_url = "http://10.83.12.170:5000/newdata";
 
 // GPIO Pins
-
 const int SENSOR_GPIO = 13;
 const int FLASH_GPIO = 4;
 const int DOOR_STATUS_PIN = 12;
@@ -33,28 +32,25 @@ TaskHandle_t SensorTask;
 void doorSensorTask(void *pvParameters) {
   Serial.println("Sensor monitoring task started on Core 0.");
   bool doorWasOpen = false;
+
   for (;;) {
     int currentState = digitalRead(SENSOR_GPIO);
-    
-    if (currentState == HIGH) {
-      digitalWrite(DOOR_STATUS_PIN, HIGH);
-    } else {
-      digitalWrite(DOOR_STATUS_PIN, LOW);
-    }
+
+    digitalWrite(DOOR_STATUS_PIN, currentState ? HIGH : LOW);
 
     if (currentState == HIGH && !doorWasOpen) {
       doorWasOpen = true;
       vTaskDelay(50 / portTICK_PERIOD_MS);
     }
-    
+
     if (currentState == LOW && doorWasOpen) {
       Serial.println("EVENT: Door opened and closed. Triggering capture.");
-      
+
       if (is_uploading) {
         Serial.println("CANCELLATION: New request arrived during upload. Setting stale flag.");
         process_is_stale = true;
       }
-      
+
       take_picture_flag = true;
       doorWasOpen = false;
     }
@@ -64,17 +60,30 @@ void doorSensorTask(void *pvParameters) {
 }
 
 // ====================================================================
-// CORE 1 FUNCTION: Capture and Send Photo (Modified with Timeout)
+// CORE 1 FUNCTION: Capture and Send Photo (JPEG directly)
 // ====================================================================
 void captureAndSendPhoto() {
-  Serial.println("Turning on flash and capturing...");
+  Serial.println("Turning on flash and preparing to capture...");
+
+  // 1️⃣ Turn on LED flash and wait to reach full brightness
   digitalWrite(FLASH_GPIO, HIGH);
-  delay(150);
+  delay(600);  // Increase delay to allow LED to fully turn ON
+
+  // 2️⃣ Start the camera sensor warm-up (avoids first dark frame)
+  esp_camera_fb_return(esp_camera_fb_get()); // Throw away first frame
+  delay(100); // Give the sensor some time to adjust
+
+  // 3️⃣ Capture the image
+  Serial.println("Capturing image...");
   camera_fb_t *fb = esp_camera_fb_get();
+
+  // 4️⃣ Hold light briefly after capture
+  delay(200);  
   digitalWrite(FLASH_GPIO, LOW);
-  
+
+  // 5️⃣ Check for errors
   if (!fb) {
-    Serial.println("Camera capture failed");
+    Serial.println("Camera capture failed!");
     return;
   }
 
@@ -84,35 +93,17 @@ void captureAndSendPhoto() {
     return;
   }
 
-  uint8_t *jpg_buf = NULL;
-  size_t jpg_buf_len = 0;
-  bool converted = frame2jpg(fb, 80, &jpg_buf, &jpg_buf_len);
-  esp_camera_fb_return(fb);
+  Serial.printf("Captured image: %d bytes\n", fb->len);
 
-  if (!converted) {
-    Serial.println("JPEG conversion failed");
-    return;
-  }
-
-  if (process_is_stale) {
-    Serial.println("ABORTING: Process is stale. Discarding converted JPEG.");
-    free(jpg_buf);
-    return;
-  }
-
-  Serial.println("Sending image and inventory data to server...");
+  // 6️⃣ Send the JPEG to the server
   HTTPClient http;
   http.begin(server_url);
-  
-  // --- START OF FIX ---
-  // Set timeout to 20 seconds (20000 ms) to wait for Gemini API
-  http.setTimeout(20000); 
-  // --- END OF FIX ---
+  http.setTimeout(20000);
   http.addHeader("Content-Type", "image/jpeg");
 
-  int httpResponseCode = http.POST(jpg_buf, jpg_buf_len);
-  
-  free(jpg_buf);
+  Serial.println("Sending image and inventory data to server...");
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+  esp_camera_fb_return(fb);
 
   if (httpResponseCode > 0) {
     Serial.printf("Server responded with code: %d\n", httpResponseCode);
@@ -121,14 +112,13 @@ void captureAndSendPhoto() {
   } else {
     Serial.printf("Error sending POST: %s\n", http.errorToString(httpResponseCode).c_str());
   }
-  
+
   http.end();
   Serial.println("Upload process finished.");
 }
 
-
 // ====================================================================
-// SETUP: Runs once on Core 1
+// SETUP
 // ====================================================================
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
@@ -137,13 +127,12 @@ void setup() {
 
   pinMode(SENSOR_GPIO, INPUT_PULLUP);
   pinMode(FLASH_GPIO, OUTPUT);
-  digitalWrite(FLASH_GPIO, LOW);
   pinMode(DOOR_STATUS_PIN, OUTPUT);
+  digitalWrite(FLASH_GPIO, LOW);
   digitalWrite(DOOR_STATUS_PIN, LOW);
 
+  // Camera Configuration for JPEG
   camera_config_t config;
-  config.pixel_format = PIXFORMAT_RGB565;
-  config.frame_size = FRAMESIZE_240X240;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
   config.pin_d0 = Y2_GPIO_NUM;
@@ -163,49 +152,59 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.jpeg_quality = 12;
-  config.fb_count = 2;
-  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.pixel_format = PIXFORMAT_JPEG;  // << Now using JPEG format directly
+  config.frame_size = FRAMESIZE_QVGA;    // 320x240
+  config.jpeg_quality = 4;              // 0 = highest, 63 = lowest
+  config.fb_count = 1;                   // Reduce memory use
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
   Serial.println("Initializing camera...");
-  if (esp_camera_init(&config) != ESP_OK) {
-    Serial.println("Camera init failed!"); return;
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x\n", err);
+    return;
   }
-  Serial.println("Camera initialized.");
+  Serial.println("Camera initialized successfully.");
 
+  // Connect WiFi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500); Serial.print(".");
+    delay(500);
+    Serial.print(".");
   }
-  Serial.println("\nWiFi connected");
+  Serial.println("\nWiFi connected!");
+  Serial.println(WiFi.localIP());
 
+  // Start door sensor monitoring task
   xTaskCreatePinnedToCore(doorSensorTask, "SensorTask", 4096, NULL, 1, &SensorTask, 0);
   Serial.println("System Ready.");
 }
 
 // ====================================================================
-// LOOP: Runs continuously on Core 1
+// LOOP
 // ====================================================================
 void loop() {
   if (take_picture_flag) {
     take_picture_flag = false;
     process_is_stale = false;
     is_uploading = true;
-    
+
     Serial.println("=== Starting New Capture and Upload Process ===");
+
     if (WiFi.status() == WL_CONNECTED) {
       captureAndSendPhoto();
     } else {
       Serial.println("Error: WiFi Disconnected.");
     }
-    
+
     is_uploading = false;
-    
-    if(process_is_stale) {
+
+    if (process_is_stale) {
       Serial.println("NOTICE: Process was cancelled, but finished before new one started.");
     }
-     Serial.println("=== Capture and Upload Process Ended ===");
+    Serial.println("=== Capture and Upload Process Ended ===");
   }
+
   delay(100);
 }
